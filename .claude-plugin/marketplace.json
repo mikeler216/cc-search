@@ -1,0 +1,17 @@
+{
+  "name": "cc-search",
+  "owner": {
+    "name": "mikeler216"
+  },
+  "metadata": {
+    "description": "Semantic search over Claude Code conversation history"
+  },
+  "plugins": [
+    {
+      "name": "cc-search",
+      "source": "./",
+      "description": "Search past conversations by meaning, not just keywords. Runs 100% locally.",
+      "strict": false
+    }
+  ]
+}
