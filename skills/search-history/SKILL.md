@@ -10,7 +10,7 @@ First, check if `cc-search` is installed by running `cc-search --help` via Bash.
 If NOT installed, tell the user and run the setup:
 
 ```bash
-uv tool install "git+https://github.com/michaeller/claude-conversation-semantic-search"
+uv tool install "git+https://github.com/mikeler216/cc-search"
 cc-search index
 ```
 

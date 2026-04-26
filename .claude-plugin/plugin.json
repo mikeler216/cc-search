@@ -5,7 +5,7 @@
   "author": {
     "name": "michaeller"
   },
-  "repository": "https://github.com/michaeller/claude-conversation-semantic-search",
+  "repository": "https://github.com/mikeler216/cc-search",
   "license": "MIT",
   "keywords": ["search", "conversations", "semantic", "history", "embeddings"]
 }
