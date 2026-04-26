@@ -13,18 +13,21 @@ def _seed_db(db: SearchDB, model):
         ("The migration failed because of a missing column.", "assistant"),
         ("How does React state management work?", "user"),
     ]
+    chunks = []
+    embeddings = []
     for i, (text, role) in enumerate(texts):
-        embedding = model.encode(text).tolist()
-        db.insert_chunk(
-            file_path="/test.jsonl",
-            session_id="sess-1",
-            project="Users/test/myproject",
-            role=role,
-            chunk_text=text,
-            turn_index=i,
-            created_at=1000.0 + i,
-            embedding=embedding,
-        )
+        chunks.append({
+            "file_path": "/test.jsonl",
+            "session_id": "sess-1",
+            "project": "Users/test/myproject",
+            "role": role,
+            "chunk_text": text,
+            "turn_index": i,
+            "created_at": 1000.0 + i,
+        })
+        embeddings.append(model.encode(text).tolist())
+    db.insert_chunks_batch(chunks, embeddings)
+    db.commit()
 
 
 def test_search_returns_relevant_results():

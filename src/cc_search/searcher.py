@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from cc_search.db import SearchDB
 from cc_search.indexer import DEFAULT_DB_PATH, MODEL_NAME, load_model
 

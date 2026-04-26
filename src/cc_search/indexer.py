@@ -1,12 +1,7 @@
 import glob
 import json
-import logging
 import os
 import time
-from typing import Any
-
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("TQDM_DISABLE", "1")
 
 from cc_search.chunker import chunk_text
 from cc_search.db import SearchDB
@@ -18,6 +13,8 @@ MODEL_CACHE_DIR = os.path.expanduser("~/.claude/search-index/models")
 
 
 def load_model(model_name: str = MODEL_NAME):
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    os.environ.setdefault("TQDM_DISABLE", "1")
     local_path = os.path.join(MODEL_CACHE_DIR, model_name)
     if os.path.isdir(local_path):
         os.environ["HF_HUB_OFFLINE"] = "1"
@@ -31,7 +28,7 @@ def load_model(model_name: str = MODEL_NAME):
     return model
 
 
-def extract_text_from_message(message: dict[str, Any]) -> str:
+def extract_text_from_message(message: dict) -> str:
     content = message.get("content", "")
     if isinstance(content, str):
         return content.strip()
@@ -52,7 +49,7 @@ def _project_name_from_path(file_path: str) -> str:
     return project_dir.replace("-", "/").lstrip("/")
 
 
-def parse_jsonl_file(file_path: str) -> list[dict[str, Any]]:
+def parse_jsonl_file(file_path: str) -> list[dict]:
     turns = []
     turn_index = 0
     with open(file_path) as f:
@@ -127,6 +124,7 @@ class Indexer:
         turns = parse_jsonl_file(file_path)
         if not turns:
             self.db.upsert_file(file_path, last_modified=mtime, last_indexed=time.time())
+            self.db.commit()
             return
 
         project = _project_name_from_path(file_path)
@@ -154,3 +152,4 @@ class Indexer:
             self.db.insert_chunks_batch(all_chunks, embeddings)
 
         self.db.upsert_file(file_path, last_modified=mtime, last_indexed=time.time())
+        self.db.commit()
