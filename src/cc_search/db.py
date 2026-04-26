@@ -150,7 +150,7 @@ class SearchDB:
         results = []
         for row in rows:
             r = dict(row)
-            if project and r["project"] != project:
+            if project and not r["project"].startswith(project):
                 continue
             if role and r["role"] != role:
                 continue

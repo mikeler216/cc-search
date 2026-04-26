@@ -1,9 +1,14 @@
+import os
 import time
 
 import click
 
 from cc_search.indexer import DEFAULT_DB_PATH, DEFAULT_CLAUDE_DIR, Indexer
 from cc_search.searcher import Searcher
+
+
+def _cwd_to_project(cwd: str) -> str:
+    return cwd.lstrip("/").replace("-", "/")
 
 
 @click.group()
@@ -36,9 +41,12 @@ def index(db_path, claude_dir, full, watch):
 @click.argument("query_text")
 @click.option("--db-path", default=DEFAULT_DB_PATH, help="Path to the search database")
 @click.option("--top", default=5, help="Number of results to return")
-@click.option("--project", default=None, help="Filter by project name")
+@click.option("--all", "search_all", is_flag=True, help="Search all projects instead of current directory")
+@click.option("--project", default=None, help="Filter by project path")
 @click.option("--role", default=None, type=click.Choice(["user", "assistant"]), help="Filter by role")
-def query(query_text, db_path, top, project, role):
+def query(query_text, db_path, top, search_all, project, role):
+    if not search_all and project is None:
+        project = _cwd_to_project(os.getcwd())
     searcher = Searcher(db_path=db_path)
     results = searcher.search(query_text, top_k=top, project=project, role=role)
 
@@ -68,8 +76,6 @@ def query(query_text, db_path, top, project, role):
 @cli.command()
 @click.option("--db-path", default=DEFAULT_DB_PATH, help="Path to the search database")
 def status(db_path):
-    import os
-
     from cc_search.db import SearchDB
 
     db = SearchDB(db_path)

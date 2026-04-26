@@ -57,7 +57,7 @@ def test_query_command():
             cli, ["index", "--db-path", db_path, "--claude-dir", claude_dir]
         )
         result = runner.invoke(
-            cli, ["query", "JWT auth", "--db-path", db_path, "--top", "3"]
+            cli, ["query", "JWT auth", "--db-path", db_path, "--top", "3", "--all"]
         )
         assert result.exit_code == 0
         assert "claude --resume" in result.output
