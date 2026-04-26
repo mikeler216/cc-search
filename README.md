@@ -18,18 +18,16 @@ A Claude Code plugin for **semantic search over your conversation history**. Fin
 
 ### As a Claude Code Plugin
 
-```bash
-claude plugin add github:mikeler216/cc-search
+Inside Claude Code, run:
+
+```
+/plugin marketplace add mikeler216/cc-search
+/plugin install cc-search@mikeler216-cc-search
 ```
 
-Then install the CLI backend:
+On first use of `/search-history`, the skill will auto-install the CLI backend and build the index.
 
-```bash
-uv tool install "git+https://github.com/mikeler216/cc-search"
-cc-search index
-```
-
-### Manual
+### Manual / Standalone CLI
 
 ```bash
 git clone https://github.com/mikeler216/cc-search.git
