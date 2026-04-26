@@ -1,0 +1,11 @@
+{
+  "name": "cc-search",
+  "description": "Semantic search over Claude Code conversation history. Search past conversations by meaning, not just keywords.",
+  "version": "0.1.0",
+  "author": {
+    "name": "michaeller"
+  },
+  "repository": "https://github.com/michaeller/claude-conversation-semantic-search",
+  "license": "MIT",
+  "keywords": ["search", "conversations", "semantic", "history", "embeddings"]
+}
