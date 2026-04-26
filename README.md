@@ -22,10 +22,10 @@ Inside Claude Code, run:
 
 ```
 /plugin marketplace add mikeler216/cc-search
-/plugin install cc-search@mikeler216-cc-search
+/plugin install cc-search@cc-search
 ```
 
-On first use of `/search-history`, the skill will auto-install the CLI backend and build the index.
+On first use of `/search-history`, the command will auto-install `uv`, the `cc-search` CLI, and build the search index. Requires Python 3.11+.
 
 ### Manual / Standalone CLI
 

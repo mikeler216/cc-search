@@ -17,6 +17,9 @@ Run via Bash: `cc-search status`
 If the command fails (not found), install it:
 
 ```bash
+# Install uv if needed
+command -v uv || (curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH="$HOME/.local/bin:$PATH")
+# Install cc-search and build index
 uv tool install "git+https://github.com/mikeler216/cc-search"
 cc-search index
 ```

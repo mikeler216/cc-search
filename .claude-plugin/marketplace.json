@@ -10,7 +10,7 @@
     {
       "name": "cc-search",
       "source": "./",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "description": "Search past conversations by meaning, not just keywords. Runs 100% locally.",
       "strict": false
     }
