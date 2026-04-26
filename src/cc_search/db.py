@@ -42,7 +42,7 @@ class SearchDB:
         self._conn.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0 (
                 id INTEGER PRIMARY KEY,
-                embedding FLOAT[384]
+                embedding FLOAT[384] distance_metric=cosine
             )
         """)
         self._conn.commit()

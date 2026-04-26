@@ -1,10 +1,12 @@
 import glob
 import json
+import logging
 import os
 import time
 from typing import Any
 
-from sentence_transformers import SentenceTransformer
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("TQDM_DISABLE", "1")
 
 from cc_search.chunker import chunk_text
 from cc_search.db import SearchDB
@@ -12,6 +14,21 @@ from cc_search.db import SearchDB
 MODEL_NAME = "all-MiniLM-L6-v2"
 DEFAULT_CLAUDE_DIR = os.path.expanduser("~/.claude")
 DEFAULT_DB_PATH = os.path.expanduser("~/.claude/search-index/conversations.db")
+MODEL_CACHE_DIR = os.path.expanduser("~/.claude/search-index/models")
+
+
+def load_model(model_name: str = MODEL_NAME):
+    local_path = os.path.join(MODEL_CACHE_DIR, model_name)
+    if os.path.isdir(local_path):
+        os.environ["HF_HUB_OFFLINE"] = "1"
+    from sentence_transformers import SentenceTransformer
+
+    if os.path.isdir(local_path):
+        return SentenceTransformer(local_path)
+    model = SentenceTransformer(model_name)
+    os.makedirs(local_path, exist_ok=True)
+    model.save(local_path)
+    return model
 
 
 def extract_text_from_message(message: dict[str, Any]) -> str:
@@ -80,9 +97,9 @@ class Indexer:
         self._model_name = model_name
 
     @property
-    def model(self) -> SentenceTransformer:
+    def model(self):
         if self._model is None:
-            self._model = SentenceTransformer(self._model_name)
+            self._model = load_model(self._model_name)
         return self._model
 
     def _find_jsonl_files(self) -> list[str]:

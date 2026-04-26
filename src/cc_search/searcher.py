@@ -1,9 +1,9 @@
+from __future__ import annotations
+
 from typing import Any
 
-from sentence_transformers import SentenceTransformer
-
 from cc_search.db import SearchDB
-from cc_search.indexer import DEFAULT_DB_PATH, MODEL_NAME
+from cc_search.indexer import DEFAULT_DB_PATH, MODEL_NAME, load_model
 
 
 class Searcher:
@@ -17,9 +17,9 @@ class Searcher:
         self._model_name = model_name
 
     @property
-    def model(self) -> SentenceTransformer:
+    def model(self):
         if self._model is None:
-            self._model = SentenceTransformer(self._model_name)
+            self._model = load_model(self._model_name)
         return self._model
 
     def search(
