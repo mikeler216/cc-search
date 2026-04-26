@@ -45,7 +45,18 @@ def index(db_path, claude_dir, full, watch):
 @click.option("--project", default=None, help="Filter by project path")
 @click.option("--role", default=None, type=click.Choice(["user", "assistant"]), help="Filter by role")
 def query(query_words, db_path, top, search_all, project, role):
-    query_text = " ".join(query_words)
+    words = []
+    for w in " ".join(query_words).split():
+        if w == "--all":
+            search_all = True
+        elif w.startswith("--top"):
+            continue
+        else:
+            words.append(w)
+    query_text = " ".join(words)
+    if not query_text:
+        click.echo("No query provided.")
+        return
     if not search_all and project is None:
         project = _cwd_to_project(os.getcwd())
     searcher = Searcher(db_path=db_path)
