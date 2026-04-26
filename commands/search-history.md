@@ -1,8 +1,11 @@
 ---
-description: "Search past conversations by meaning"
-argument-hint: "QUERY [--all]"
+description: "Semantic search over past Claude Code conversations"
+argument-hint: "QUERY [--all] [--top N]"
+allowed-tools: ["Bash(cc-search:*)"]
 ---
 
-Use the `search-history` skill to handle this search request.
+Search past conversations using the `cc-search` CLI. Results include resume commands to jump back into any conversation.
 
-The user's query is: $ARGUMENTS
+```!
+cc-search query "$ARGUMENTS" --top 5
+```
