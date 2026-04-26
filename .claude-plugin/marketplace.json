@@ -9,7 +9,11 @@
   "plugins": [
     {
       "name": "cc-search",
-      "source": "./",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/mikeler216/cc-search.git"
+      },
+      "version": "0.1.0",
       "description": "Search past conversations by meaning, not just keywords. Runs 100% locally.",
       "strict": false
     }
