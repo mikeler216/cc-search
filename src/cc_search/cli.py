@@ -38,13 +38,14 @@ def index(db_path, claude_dir, full, watch):
 
 
 @cli.command()
-@click.argument("query_text")
+@click.argument("query_words", nargs=-1, required=True)
 @click.option("--db-path", default=DEFAULT_DB_PATH, help="Path to the search database")
 @click.option("--top", default=5, help="Number of results to return")
 @click.option("--all", "search_all", is_flag=True, help="Search all projects instead of current directory")
 @click.option("--project", default=None, help="Filter by project path")
 @click.option("--role", default=None, type=click.Choice(["user", "assistant"]), help="Filter by role")
-def query(query_text, db_path, top, search_all, project, role):
+def query(query_words, db_path, top, search_all, project, role):
+    query_text = " ".join(query_words)
     if not search_all and project is None:
         project = _cwd_to_project(os.getcwd())
     searcher = Searcher(db_path=db_path)

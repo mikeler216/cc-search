@@ -7,5 +7,5 @@ allowed-tools: ["Bash(cc-search:*)"]
 Search past conversations using the `cc-search` CLI. Results include resume commands to jump back into any conversation.
 
 ```!
-cc-search query "$ARGUMENTS" --top 5
+cc-search query $ARGUMENTS --top 5
 ```
