@@ -1,4 +1,5 @@
 import os
+import subprocess
 import time
 
 import click
@@ -79,6 +80,21 @@ def query(query_words, db_path, top, search_all, project, role):
         click.echo()
 
     searcher.db.close()
+
+
+@cli.command()
+def update():
+    """Update cc-search to the latest version."""
+    click.echo("Updating cc-search...")
+    result = subprocess.run(
+        ["uv", "tool", "install", "git+https://github.com/mikeler216/cc-search", "--force"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        click.echo("Updated successfully.")
+    else:
+        click.echo(f"Update failed:\n{result.stderr}")
 
 
 @cli.command()
