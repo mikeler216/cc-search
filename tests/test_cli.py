@@ -57,7 +57,7 @@ def test_query_command():
             cli, ["index", "--db-path", db_path, "--claude-dir", claude_dir]
         )
         result = runner.invoke(
-            cli, ["query", "JWT auth", "--db-path", db_path, "--top", "3", "--all"]
+            cli, ["query", "JWT auth", "--db-path", db_path, "--top", "3", "--all", "--claude-dir", claude_dir]
         )
         assert result.exit_code == 0
         assert "claude --resume" in result.output
@@ -79,6 +79,8 @@ def test_query_empty_db():
     runner = CliRunner()
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = os.path.join(tmpdir, "empty.db")
-        result = runner.invoke(cli, ["query", "hello", "--db-path", db_path])
+        claude_dir = os.path.join(tmpdir, "claude_empty")
+        os.makedirs(claude_dir)
+        result = runner.invoke(cli, ["query", "hello", "--db-path", db_path, "--all", "--claude-dir", claude_dir])
         assert result.exit_code == 0
         assert "No results" in result.output or "no results" in result.output.lower()

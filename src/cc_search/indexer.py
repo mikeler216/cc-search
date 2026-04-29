@@ -2,6 +2,7 @@ import glob
 import json
 import os
 import time
+from functools import cached_property
 
 from cc_search.chunker import chunk_text
 from cc_search.db import SearchDB
@@ -15,13 +16,13 @@ MODEL_CACHE_DIR = os.path.expanduser("~/.claude/search-index/models")
 def load_model(model_name: str = MODEL_NAME):
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     os.environ.setdefault("TQDM_DISABLE", "1")
+    from sentence_transformers import SentenceTransformer
+
     local_path = os.path.join(MODEL_CACHE_DIR, model_name)
     if os.path.isdir(local_path):
         os.environ["HF_HUB_OFFLINE"] = "1"
-    from sentence_transformers import SentenceTransformer
-
-    if os.path.isdir(local_path):
         return SentenceTransformer(local_path)
+
     model = SentenceTransformer(model_name)
     os.makedirs(local_path, exist_ok=True)
     model.save(local_path)
@@ -45,8 +46,7 @@ def _project_name_from_path(file_path: str) -> str:
     parts = file_path.split("/projects/")
     if len(parts) < 2:
         return "unknown"
-    project_dir = parts[1].split("/")[0]
-    return project_dir.replace("-", "/").lstrip("/")
+    return parts[1].split("/")[0]
 
 
 def parse_jsonl_file(file_path: str) -> list[dict]:
@@ -90,14 +90,11 @@ class Indexer:
     ):
         self.db = SearchDB(db_path)
         self.claude_dir = claude_dir
-        self._model = None
         self._model_name = model_name
 
-    @property
+    @cached_property
     def model(self):
-        if self._model is None:
-            self._model = load_model(self._model_name)
-        return self._model
+        return load_model(self._model_name)
 
     def _find_jsonl_files(self) -> list[str]:
         projects_dir = os.path.join(self.claude_dir, "projects")

@@ -9,7 +9,25 @@ from cc_search.searcher import Searcher
 
 
 def _cwd_to_project(cwd: str) -> str:
-    return cwd.lstrip("/").replace("-", "/")
+    return "-" + cwd.replace("/", "-").lstrip("-")
+
+
+def _display_project(raw_name: str) -> str:
+    segments = raw_name.lstrip("-").split("-")
+    resolved = "/"
+    i = 0
+    while i < len(segments):
+        for j in range(len(segments), i, -1):
+            candidate = "-".join(segments[i:j])
+            test_path = os.path.join(resolved, candidate)
+            if os.path.isdir(test_path) or j == i + 1:
+                resolved = test_path
+                i = j
+                break
+    home = os.path.expanduser("~")
+    if resolved.startswith(home + "/"):
+        return resolved[len(home) + 1:]
+    return resolved.lstrip("/")
 
 
 @click.group()
@@ -45,7 +63,8 @@ def index(db_path, claude_dir, full, watch):
 @click.option("--all", "search_all", is_flag=True, help="Search all projects instead of current directory")
 @click.option("--project", default=None, help="Filter by project path")
 @click.option("--role", default=None, type=click.Choice(["user", "assistant"]), help="Filter by role")
-def query(query_words, db_path, top, search_all, project, role):
+@click.option("--claude-dir", default=DEFAULT_CLAUDE_DIR, help="Path to ~/.claude directory")
+def query(query_words, db_path, top, search_all, project, role, claude_dir):
     all_words = " ".join(query_words).split()
     words = [w for w in all_words if w != "--all"]
     if len(words) < len(all_words):
@@ -56,6 +75,9 @@ def query(query_words, db_path, top, search_all, project, role):
         return
     if not search_all and project is None:
         project = _cwd_to_project(os.getcwd())
+    indexer = Indexer(db_path=db_path, claude_dir=claude_dir)
+    indexer.index()
+    indexer.db.close()
     searcher = Searcher(db_path=db_path)
     results = searcher.search(query_text, top_k=top, project=project, role=role)
 
@@ -66,7 +88,8 @@ def query(query_words, db_path, top, search_all, project, role):
     for i, r in enumerate(results, 1):
         score = r.get("score", 0)
         click.echo(f"── Result {i} (score: {score:.2f}) {'─' * 30}")
-        click.echo(f"Project: {r['project']}")
+        click.echo(f"Project: {_display_project(r['project'])}")
+        click.echo(f"Session: {r['session_id']}")
         click.echo(f"Role:    {r['role']}")
         click.echo(f"Turn:    {r['turn_index']}")
         click.echo()

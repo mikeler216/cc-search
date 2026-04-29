@@ -69,7 +69,7 @@ def test_parse_jsonl_file():
         assert turns[1]["text"] == "Try checking the logs."
 
 
-def test_indexer_indexes_file():
+def test_indexer_indexes_file(model):
     with tempfile.TemporaryDirectory() as tmpdir:
         projects_dir = os.path.join(tmpdir, "projects", "-Users-test-myproject")
         os.makedirs(projects_dir)
@@ -95,6 +95,7 @@ def test_indexer_indexes_file():
         _make_jsonl(projects_dir, "sess-1.jsonl", lines)
         db_path = os.path.join(tmpdir, "test.db")
         indexer = Indexer(db_path=db_path, claude_dir=tmpdir)
+        indexer._model = model
         indexer.index()
         stats = indexer.db.get_stats()
         assert stats["total_chunks"] == 2
@@ -102,7 +103,7 @@ def test_indexer_indexes_file():
         indexer.db.close()
 
 
-def test_indexer_incremental_skips_unchanged():
+def test_indexer_incremental_skips_unchanged(model):
     with tempfile.TemporaryDirectory() as tmpdir:
         projects_dir = os.path.join(tmpdir, "projects", "-Users-test-proj")
         os.makedirs(projects_dir)
@@ -117,9 +118,9 @@ def test_indexer_incremental_skips_unchanged():
         _make_jsonl(projects_dir, "s1.jsonl", lines)
         db_path = os.path.join(tmpdir, "test.db")
         indexer = Indexer(db_path=db_path, claude_dir=tmpdir)
+        indexer._model = model
         indexer.index()
         assert indexer.db.get_stats()["total_chunks"] == 1
-        # Index again — should not add duplicates
         indexer.index()
         assert indexer.db.get_stats()["total_chunks"] == 1
         indexer.db.close()
