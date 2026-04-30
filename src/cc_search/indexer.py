@@ -100,7 +100,8 @@ class Indexer:
         projects_dir = os.path.join(self.claude_dir, "projects")
         if not os.path.isdir(projects_dir):
             return []
-        return glob.glob(os.path.join(projects_dir, "**", "*.jsonl"), recursive=True)
+        all_files = glob.glob(os.path.join(projects_dir, "**", "*.jsonl"), recursive=True)
+        return [f for f in all_files if "/subagents/" not in f]
 
     def index(self, full: bool = False):
         files = self._find_jsonl_files()
