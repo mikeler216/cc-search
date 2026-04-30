@@ -49,4 +49,6 @@ From the cc-search output, present each result as:
 - Project name and role (user/assistant)
 - The resume command to jump back into that conversation
 
+IMPORTANT: Always show the FULL session ID (complete UUID) in resume commands and tables. Never truncate or abbreviate session IDs — `claude --resume` requires the full UUID to work.
+
 Keep it concise. Do not add your own commentary about the results.
