@@ -105,7 +105,13 @@ class Indexer:
 
     def index(self, full: bool = False):
         files = self._find_jsonl_files()
+        file_set = set(files)
         indexed_files = self.db.get_all_files()
+
+        for old_path in indexed_files:
+            if old_path not in file_set:
+                self.db.delete_chunks_by_file(old_path)
+                self.db.commit()
 
         for file_path in files:
             mtime = os.path.getmtime(file_path)
