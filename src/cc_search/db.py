@@ -1,6 +1,19 @@
 import os
-import sqlite3
 import struct
+
+try:
+    import sqlite3
+    _test_conn = sqlite3.connect(":memory:")
+    _test_conn.enable_load_extension(True)
+    _test_conn.close()
+except AttributeError:
+    try:
+        import pysqlite3 as sqlite3
+    except ImportError:
+        raise ImportError(
+            "Your Python's sqlite3 module doesn't support loading extensions. "
+            "On macOS, reinstall with: uv tool install cc-search --python $(brew --prefix python)/bin/python3"
+        )
 
 import sqlite_vec
 
