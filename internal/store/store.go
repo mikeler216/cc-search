@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 
 	vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
@@ -19,8 +20,7 @@ func init() {
 const SchemaVersion = "1"
 
 type DB struct {
-	conn      *sql.DB
-	modelHash string
+	conn *sql.DB
 }
 
 type FileRecord struct {
@@ -121,7 +121,6 @@ func (db *DB) GetMeta(key string) (string, error) {
 }
 
 func (db *DB) InitMeta(modelHash string) error {
-	db.modelHash = modelHash
 	if err := db.SetMeta("schema_version", SchemaVersion); err != nil {
 		return err
 	}
@@ -239,13 +238,21 @@ func (db *DB) InsertChunks(chunks []Chunk, embeddings [][]float32) error {
 }
 
 func (db *DB) DeleteChunksByFile(filePath string) error {
-	if _, err := db.conn.Exec(
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(
 		"DELETE FROM chunks_vec WHERE id IN (SELECT id FROM chunks WHERE file_path = ?)",
 		filePath); err != nil {
 		return err
 	}
-	_, err := db.conn.Exec("DELETE FROM chunks WHERE file_path = ?", filePath)
-	return err
+	if _, err := tx.Exec("DELETE FROM chunks WHERE file_path = ?", filePath); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (db *DB) Search(queryEmbedding []float32, topK int, project, role string) ([]Result, error) {
@@ -279,24 +286,19 @@ func (db *DB) Search(queryEmbedding []float32, topK int, project, role string) (
 			&r.Role, &r.Text, &r.TurnIndex, &r.CreatedAt); err != nil {
 			return nil, err
 		}
-		if project != "" && !hasPrefix(r.Project, project) {
+		if project != "" && !strings.HasPrefix(r.Project, project) {
 			continue
 		}
 		if role != "" && r.Role != role {
 			continue
 		}
 		r.Score = 1.0 - distance
-		r.ResumeCommand = fmt.Sprintf("claude --resume %s", r.SessionID)
 		results = append(results, r)
 		if len(results) >= topK {
 			break
 		}
 	}
 	return results, rows.Err()
-}
-
-func hasPrefix(s, prefix string) bool {
-	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }
 
 func (db *DB) Stats() (chunks, files int, sizeKB int64, err error) {
