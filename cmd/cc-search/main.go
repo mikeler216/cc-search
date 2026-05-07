@@ -41,17 +41,24 @@ func rootCmd() *cobra.Command {
 }
 
 // isFreshDB returns true if the DB has no meta entries at all (never been
-// initialised). This distinguishes a brand-new database from one that has been
-// indexed with a different model or schema version.
+// initialised) AND contains zero chunks. This distinguishes a brand-new
+// database from a Python-era DB that has chunks_vec data but no meta table
+// entries (Python schema never wrote meta), which would otherwise silently
+// produce garbage results on query/status.
 //
-// This is the CLI-level Option B fix for the empty-DB version check: when
-// CheckVersion returns false we check whether the meta table is empty. If so,
-// we let query/status proceed rather than printing a confusing "Index out of
-// date" warning for a DB that has never been indexed.
+// The four cases handled by isFreshDB + CheckVersion:
+//   - Truly fresh DB (no meta, 0 chunks):              isFreshDB=true  → allow through
+//   - Python-era DB (no meta, has chunks):             isFreshDB=false → warn-and-exit
+//   - Go DB matching current model hash:               CheckVersion=true → allow through
+//   - Go DB with mismatched hash:                      CheckVersion=false, isFreshDB=false → warn-and-exit
 func isFreshDB(db *store.DB) bool {
 	sv, err1 := db.GetMeta("schema_version")
 	mh, err2 := db.GetMeta("model_hash")
-	return err1 == nil && err2 == nil && sv == "" && mh == ""
+	if err1 != nil || err2 != nil || sv != "" || mh != "" {
+		return false
+	}
+	chunks, _, _, err := db.Stats()
+	return err == nil && chunks == 0
 }
 
 // checkVersionOrExit performs the version guard used by query and status.
