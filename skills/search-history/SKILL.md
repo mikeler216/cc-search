@@ -17,10 +17,13 @@ Run via Bash: `cc-search status`
 If the command fails (not found), install it:
 
 ```bash
-# Install uv if needed
-command -v uv || (curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH="$HOME/.local/bin:$PATH")
-# Install cc-search and build index
-uv tool install "git+https://github.com/mikeler216/cc-search"
+# Detect platform and download binary
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+case "$ARCH" in x86_64) ARCH="amd64" ;; aarch64|arm64) ARCH="arm64" ;; esac
+curl -L -o "$HOME/.local/bin/cc-search" "https://github.com/mikeler216/cc-search/releases/latest/download/cc-search-${OS}-${ARCH}"
+chmod +x "$HOME/.local/bin/cc-search"
+export PATH="$HOME/.local/bin:$PATH"
 cc-search index
 ```
 
