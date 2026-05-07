@@ -32,12 +32,26 @@ mkdir -p "$INSTALL_DIR"
 echo "Downloading cc-search for ${OS}/${ARCH}..."
 if command -v curl &>/dev/null; then
   curl -L -o "${INSTALL_DIR}/cc-search" "$URL"
+  curl -L -o /tmp/cc-search.sha256 "${URL}.sha256"
 elif command -v wget &>/dev/null; then
   wget -O "${INSTALL_DIR}/cc-search" "$URL"
+  wget -O /tmp/cc-search.sha256 "${URL}.sha256"
 else
   echo "Error: curl or wget required"
   exit 1
 fi
+
+echo "Verifying checksum..."
+if command -v shasum &>/dev/null; then
+  expected="$(awk '{print $1}' /tmp/cc-search.sha256)  ${INSTALL_DIR}/cc-search"
+  echo "$expected" | shasum -a 256 -c - || { echo "Error: checksum verification failed"; rm -f "${INSTALL_DIR}/cc-search"; exit 1; }
+elif command -v sha256sum &>/dev/null; then
+  expected="$(awk '{print $1}' /tmp/cc-search.sha256)  ${INSTALL_DIR}/cc-search"
+  echo "$expected" | sha256sum -c - || { echo "Error: checksum verification failed"; rm -f "${INSTALL_DIR}/cc-search"; exit 1; }
+else
+  echo "Warning: neither shasum nor sha256sum found; skipping checksum verification"
+fi
+rm -f /tmp/cc-search.sha256
 
 chmod +x "${INSTALL_DIR}/cc-search"
 echo "✓ cc-search installed to ${INSTALL_DIR}/cc-search"

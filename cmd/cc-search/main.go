@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -57,7 +59,7 @@ func isFreshDB(db *store.DB) bool {
 	if err1 != nil || err2 != nil || sv != "" || mh != "" {
 		return false
 	}
-	chunks, _, _, err := db.Stats()
+	chunks, _, err := db.Stats()
 	return err == nil && chunks == 0
 }
 
@@ -84,8 +86,9 @@ func indexCmd() *cobra.Command {
 	var full, watch bool
 
 	cmd := &cobra.Command{
-		Use:   "index",
-		Short: "Build or update the search index",
+		Use:          "index",
+		Short:        "Build or update the search index",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			model, err := embedding.New()
 			if err != nil {
@@ -108,7 +111,7 @@ func indexCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			totalChunks, totalFiles, _, _ := db.Stats()
+			totalChunks, totalFiles, _ := db.Stats()
 			if chunks > 0 || files > 0 {
 				fmt.Printf("Indexed %d chunks from %d files.\n", totalChunks, totalFiles)
 			} else {
@@ -229,9 +232,10 @@ func queryCmd() *cobra.Command {
 	var searchAll bool
 
 	cmd := &cobra.Command{
-		Use:   "query <terms...>",
-		Short: "Semantic search over conversations",
-		Args:  cobra.MinimumNArgs(1),
+		Use:          "query <terms...>",
+		Short:        "Semantic search over conversations",
+		Args:         cobra.MinimumNArgs(1),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			queryText := strings.Join(args, " ")
 
@@ -303,8 +307,9 @@ func statusCmd() *cobra.Command {
 	var dbPath string
 
 	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "Show index statistics",
+		Use:          "status",
+		Short:        "Show index statistics",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := store.Open(dbPath)
 			if err != nil {
@@ -320,7 +325,7 @@ func statusCmd() *cobra.Command {
 
 			checkVersionOrExit(db, model.ModelHash())
 
-			chunks, files, _, err := db.Stats()
+			chunks, files, err := db.Stats()
 			if err != nil {
 				return err
 			}
@@ -343,17 +348,22 @@ func statusCmd() *cobra.Command {
 
 func updateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "update",
-		Short: "Update cc-search to the latest version",
+		Use:          "update",
+		Short:        "Update cc-search to the latest version",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Checking for updates...")
 
 			goos := runtime.GOOS
 			goarch := runtime.GOARCH
 			binaryName := fmt.Sprintf("cc-search-%s-%s", goos, goarch)
-			url := fmt.Sprintf("https://github.com/mikeler216/cc-search/releases/latest/download/%s", binaryName)
+			binaryURL := fmt.Sprintf("https://github.com/mikeler216/cc-search/releases/latest/download/%s", binaryName)
+			sha256URL := binaryURL + ".sha256"
 
-			resp, err := http.Get(url) //nolint:noctx
+			client := &http.Client{Timeout: 5 * time.Minute}
+
+			// Download binary.
+			resp, err := client.Get(binaryURL)
 			if err != nil {
 				return fmt.Errorf("download failed: %w", err)
 			}
@@ -377,12 +387,40 @@ func updateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(f, resp.Body); err != nil {
+
+			hasher := sha256.New()
+			if _, err := io.Copy(io.MultiWriter(f, hasher), resp.Body); err != nil {
 				f.Close()
 				os.Remove(tmpPath)
 				return err
 			}
 			f.Close()
+
+			// Download and verify SHA256.
+			sha256Resp, err := client.Get(sha256URL)
+			if err != nil {
+				os.Remove(tmpPath)
+				return fmt.Errorf("sha256 download failed: %w", err)
+			}
+			defer sha256Resp.Body.Close()
+
+			if sha256Resp.StatusCode != http.StatusOK {
+				os.Remove(tmpPath)
+				return fmt.Errorf("sha256 download failed: HTTP %d", sha256Resp.StatusCode)
+			}
+
+			sha256Bytes, err := io.ReadAll(sha256Resp.Body)
+			if err != nil {
+				os.Remove(tmpPath)
+				return fmt.Errorf("sha256 read failed: %w", err)
+			}
+
+			expectedHash := strings.TrimSpace(strings.Fields(string(sha256Bytes))[0])
+			actualHash := hex.EncodeToString(hasher.Sum(nil))
+			if actualHash != expectedHash {
+				os.Remove(tmpPath)
+				return fmt.Errorf("sha256 mismatch: expected %s, got %s", expectedHash, actualHash)
+			}
 
 			if err := os.Rename(tmpPath, self); err != nil {
 				os.Remove(tmpPath)

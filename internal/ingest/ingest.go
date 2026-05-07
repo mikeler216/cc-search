@@ -54,6 +54,7 @@ func Run(dbPath string, model *embedding.Model, claudeDir string, full bool) (in
 		if !fileSet[path] {
 			// Ignore errors from deletion; stale records are not critical.
 			_ = db.DeleteChunksByFile(path)
+			_ = db.DeleteFile(path)
 		}
 	}
 

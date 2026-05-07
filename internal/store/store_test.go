@@ -215,11 +215,41 @@ func TestDeleteChunksByFile(t *testing.T) {
 func TestStats(t *testing.T) {
 	db := tempDB(t)
 
-	chunks, files, _, err := db.Stats()
+	chunks, files, err := db.Stats()
 	if err != nil {
 		t.Fatalf("Stats: %v", err)
 	}
 	if chunks != 0 || files != 0 {
 		t.Errorf("empty db: chunks=%d files=%d, want 0,0", chunks, files)
+	}
+}
+
+func TestDeleteFile(t *testing.T) {
+	db := tempDB(t)
+
+	if err := db.UpsertFile("/del.jsonl", 1000.0, 1001.0); err != nil {
+		t.Fatalf("UpsertFile: %v", err)
+	}
+
+	// Verify it was inserted.
+	rec, err := db.GetFile("/del.jsonl")
+	if err != nil {
+		t.Fatalf("GetFile before delete: %v", err)
+	}
+	if rec == nil {
+		t.Fatal("expected non-nil record before delete")
+	}
+
+	if err := db.DeleteFile("/del.jsonl"); err != nil {
+		t.Fatalf("DeleteFile: %v", err)
+	}
+
+	// Verify it is gone.
+	rec, err = db.GetFile("/del.jsonl")
+	if err != nil {
+		t.Fatalf("GetFile after delete: %v", err)
+	}
+	if rec != nil {
+		t.Error("expected nil after DeleteFile, got a record")
 	}
 }

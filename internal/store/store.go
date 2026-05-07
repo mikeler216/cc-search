@@ -237,6 +237,11 @@ func (db *DB) InsertChunks(chunks []Chunk, embeddings [][]float32) error {
 	return tx.Commit()
 }
 
+func (db *DB) DeleteFile(path string) error {
+	_, err := db.conn.Exec("DELETE FROM files WHERE path = ?", path)
+	return err
+}
+
 func (db *DB) DeleteChunksByFile(filePath string) error {
 	tx, err := db.conn.Begin()
 	if err != nil {
@@ -301,7 +306,7 @@ func (db *DB) Search(queryEmbedding []float32, topK int, project, role string) (
 	return results, rows.Err()
 }
 
-func (db *DB) Stats() (chunks, files int, sizeKB int64, err error) {
+func (db *DB) Stats() (chunks, files int, err error) {
 	if err = db.conn.QueryRow("SELECT COUNT(*) FROM chunks").Scan(&chunks); err != nil {
 		return
 	}
