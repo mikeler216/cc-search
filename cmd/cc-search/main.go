@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +23,13 @@ import (
 	"github.com/mikeler216/cc-search/internal/store"
 )
 
+const (
+	releaseRepo         = "mikeler216/cc-search"
+	latestReleaseAPIURL = "https://api.github.com/repos/" + releaseRepo + "/releases/latest"
+)
+
 var (
+	version          = "dev"
 	defaultClaudeDir = filepath.Join(os.Getenv("HOME"), ".claude")
 	defaultDBPath    = filepath.Join(defaultClaudeDir, "search-index", "conversations.db")
 )
@@ -38,7 +45,7 @@ func rootCmd() *cobra.Command {
 		Use:   "cc-search",
 		Short: "Semantic search over Claude Code conversation history",
 	}
-	root.AddCommand(indexCmd(), queryCmd(), statusCmd(), updateCmd())
+	root.AddCommand(indexCmd(), queryCmd(), statusCmd(), updateCmd(), versionCmd())
 	return root
 }
 
@@ -346,6 +353,87 @@ func statusCmd() *cobra.Command {
 
 // ── update ─────────────────────────────────────────────────────────────────
 
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the cc-search version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(displayVersion(version))
+		},
+	}
+}
+
+func latestReleaseTag(client *http.Client) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, latestReleaseAPIURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "cc-search/"+displayVersion(version))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("latest release lookup failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("latest release lookup failed: HTTP %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("latest release lookup failed: %w", err)
+	}
+	return parseLatestReleaseTag(body)
+}
+
+func parseLatestReleaseTag(body []byte) (string, error) {
+	var payload struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", fmt.Errorf("decode latest release response: %w", err)
+	}
+	tag := strings.TrimSpace(payload.TagName)
+	if tag == "" {
+		return "", fmt.Errorf("latest release response missing tag_name")
+	}
+	return tag, nil
+}
+
+func releaseAssetURL(tag, goos, goarch string) string {
+	return fmt.Sprintf(
+		"https://github.com/%s/releases/download/%s/%s",
+		releaseRepo,
+		strings.TrimSpace(tag),
+		releaseBinaryName(goos, goarch),
+	)
+}
+
+func releaseBinaryName(goos, goarch string) string {
+	return fmt.Sprintf("cc-search-%s-%s", goos, goarch)
+}
+
+func sameVersion(current, latest string) bool {
+	return normalizeVersion(current) == normalizeVersion(latest)
+}
+
+func normalizeVersion(v string) string {
+	return strings.TrimPrefix(strings.TrimSpace(v), "v")
+}
+
+func displayVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "dev"
+	}
+	if v == "dev" {
+		return v
+	}
+	return normalizeVersion(v)
+}
+
 func updateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:          "update",
@@ -354,13 +442,24 @@ func updateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Checking for updates...")
 
+			client := &http.Client{Timeout: 5 * time.Minute}
+			latestTag, err := latestReleaseTag(client)
+			if err != nil {
+				return err
+			}
+
+			currentVersion := displayVersion(version)
+			latestVersion := displayVersion(latestTag)
+			if sameVersion(currentVersion, latestTag) {
+				fmt.Printf("cc-search %s is already up to date.\n", latestVersion)
+				return nil
+			}
+			fmt.Printf("Updating cc-search from %s to %s...\n", currentVersion, latestVersion)
+
 			goos := runtime.GOOS
 			goarch := runtime.GOARCH
-			binaryName := fmt.Sprintf("cc-search-%s-%s", goos, goarch)
-			binaryURL := fmt.Sprintf("https://github.com/mikeler216/cc-search/releases/latest/download/%s", binaryName)
+			binaryURL := releaseAssetURL(latestTag, goos, goarch)
 			sha256URL := binaryURL + ".sha256"
-
-			client := &http.Client{Timeout: 5 * time.Minute}
 
 			// Download binary.
 			resp, err := client.Get(binaryURL)
@@ -427,7 +526,7 @@ func updateCmd() *cobra.Command {
 				return fmt.Errorf("replace binary: %w", err)
 			}
 
-			fmt.Println("Updated successfully. Reindexing...")
+			fmt.Printf("Updated successfully to %s. Reindexing...\n", latestVersion)
 			reindex := exec.Command(self, "index", "--full")
 			reindex.Stdout = os.Stdout
 			reindex.Stderr = os.Stderr

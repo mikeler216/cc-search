@@ -23,13 +23,35 @@ case "$ARCH" in
   aarch64|arm64) ARCH="arm64" ;;
 esac
 
+REPO="mikeler216/cc-search"
 BINARY="cc-search-${OS}-${ARCH}"
-URL="https://github.com/mikeler216/cc-search/releases/latest/download/${BINARY}"
+
+fetch_latest_tag() {
+  local body
+  if command -v curl &>/dev/null; then
+    body="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")"
+  elif command -v wget &>/dev/null; then
+    body="$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest")"
+  else
+    echo "Error: curl or wget required"
+    exit 1
+  fi
+
+  printf '%s\n' "$body" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
+}
+
+LATEST_TAG="$(fetch_latest_tag)"
+if [[ -z "$LATEST_TAG" ]]; then
+  echo "Error: could not resolve the latest GitHub release tag"
+  exit 1
+fi
+
+URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${BINARY}"
 
 INSTALL_DIR="$HOME/.local/bin"
 mkdir -p "$INSTALL_DIR"
 
-echo "Downloading cc-search for ${OS}/${ARCH}..."
+echo "Downloading cc-search ${LATEST_TAG} for ${OS}/${ARCH}..."
 if command -v curl &>/dev/null; then
   curl -L -o "${INSTALL_DIR}/cc-search" "$URL"
   curl -L -o /tmp/cc-search.sha256 "${URL}.sha256"
