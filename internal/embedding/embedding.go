@@ -17,27 +17,38 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 
 	ort "github.com/yalue/onnxruntime_go"
 
 	"github.com/mikeler216/cc-search/internal/assets"
 )
 
-// ortInitialized guards the one-time global ONNX Runtime initialization.
-// The runtime panics if InitializeEnvironment is called twice.
-var ortInitialized bool
+// defaultBatchSize bounds peak memory by capping how many texts feed into a
+// single ONNX inference call.
+const defaultBatchSize = 64
+
+// ortInitOnce guards the one-time global ONNX Runtime initialization.
+// The runtime panics if InitializeEnvironment is called twice, so we use
+// sync.Once to make concurrent New() calls safe.
+var (
+	ortInitOnce sync.Once
+	ortInitErr  error
+)
 
 // Model is a thread-unsafe wrapper around the embedded ONNX sentence
-// transformer. Each call to Embed creates a fresh ONNX session sized for
-// the batch's longest sequence — sessions are not reused across batches.
+// transformer. A single DynamicAdvancedSession is created in New() and
+// reused across all batches for the lifetime of the Model.
 type Model struct {
 	modelPath string
 	tokenizer *Tokenizer
 	modelHash string
+	session   *ort.DynamicAdvancedSession
 }
 
 // onnxLibPath returns the conventional install path for the ONNX Runtime
-// shared library on the current platform.
+// shared library on the current platform. Windows is unsupported by
+// default; users on Windows must set ONNX_LIB explicitly.
 func onnxLibPath() string {
 	switch runtime.GOOS {
 	case "darwin":
@@ -45,29 +56,32 @@ func onnxLibPath() string {
 			return "/opt/homebrew/lib/libonnxruntime.dylib"
 		}
 		return "/usr/local/lib/libonnxruntime.dylib"
+	case "windows":
+		return "" // unsupported on Windows; user must set ONNX_LIB
 	default:
 		return "/usr/local/lib/libonnxruntime.so"
 	}
 }
 
 // New initializes the global ONNX Runtime (once per process), writes the
-// embedded model bytes to a temp file (so onnxruntime can mmap them), and
-// returns a Model ready for inference. The caller must Close the returned
-// Model to remove the temp directory.
+// embedded model bytes to a temp file (so onnxruntime can mmap them),
+// creates a single dynamic session for the lifetime of the Model, and
+// returns it ready for inference. The caller must Close the returned
+// Model to destroy the session and remove the temp directory.
 //
 // The ONNX_LIB environment variable, if set, overrides the auto-detected
 // shared library path.
 func New() (*Model, error) {
-	if !ortInitialized {
+	ortInitOnce.Do(func() {
 		libPath := onnxLibPath()
 		if p := os.Getenv("ONNX_LIB"); p != "" {
 			libPath = p
 		}
 		ort.SetSharedLibraryPath(libPath)
-		if err := ort.InitializeEnvironment(); err != nil {
-			return nil, fmt.Errorf("init onnxruntime: %w", err)
-		}
-		ortInitialized = true
+		ortInitErr = ort.InitializeEnvironment()
+	})
+	if ortInitErr != nil {
+		return nil, fmt.Errorf("init onnxruntime: %w", ortInitErr)
 	}
 
 	tmpDir, err := os.MkdirTemp("", "cc-search-model-*")
@@ -80,23 +94,41 @@ func New() (*Model, error) {
 		return nil, fmt.Errorf("write model file: %w", err)
 	}
 
+	session, err := ort.NewDynamicAdvancedSession(modelPath,
+		[]string{"input_ids", "attention_mask", "token_type_ids"},
+		[]string{"last_hidden_state"},
+		nil,
+	)
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		return nil, fmt.Errorf("create session: %w", err)
+	}
+
 	hash := sha256.Sum256(assets.ModelONNX)
 
 	return &Model{
 		modelPath: modelPath,
 		tokenizer: NewTokenizer(assets.VocabTxt),
 		modelHash: fmt.Sprintf("%x", hash),
+		session:   session,
 	}, nil
 }
 
-// Close removes the temp directory holding the on-disk model file. The
-// global ONNX Runtime environment is intentionally left initialized so a
-// subsequent New() call in the same process is fast.
+// Close destroys the ONNX session and removes the temp directory holding
+// the on-disk model file. The global ONNX Runtime environment is
+// intentionally left initialized so a subsequent New() call in the same
+// process is fast.
 func (m *Model) Close() {
-	if m == nil || m.modelPath == "" {
+	if m == nil {
 		return
 	}
-	os.RemoveAll(filepath.Dir(m.modelPath))
+	if m.session != nil {
+		_ = m.session.Destroy()
+		m.session = nil
+	}
+	if m.modelPath != "" {
+		os.RemoveAll(filepath.Dir(m.modelPath))
+	}
 }
 
 // ModelHash returns the SHA256 of the embedded model bytes, hex-encoded.
@@ -111,16 +143,17 @@ func (m *Model) CountTokens(text string) int {
 	return m.tokenizer.CountTokens(text)
 }
 
-// Embed encodes texts into 384-dimensional, L2-normalized embeddings.
-// Inputs are processed in batches of 64 to bound peak memory.
+// Embed returns 384-dimensional embedding vectors for each input text.
+// Inputs longer than 510 WordPiece tokens are silently truncated. Callers
+// who need to keep all content should split text into chunks using
+// CountTokens to check length first.
 func (m *Model) Embed(texts []string) ([][]float32, error) {
 	if len(texts) == 0 {
 		return nil, nil
 	}
 	results := make([][]float32, len(texts))
-	const batchSize = 64
-	for start := 0; start < len(texts); start += batchSize {
-		end := start + batchSize
+	for start := 0; start < len(texts); start += defaultBatchSize {
+		end := start + defaultBatchSize
 		if end > len(texts) {
 			end = len(texts)
 		}
@@ -134,8 +167,9 @@ func (m *Model) Embed(texts []string) ([][]float32, error) {
 	return results, nil
 }
 
-// embedBatch tokenizes a single batch, runs ONNX inference, and applies
-// attention-mask-weighted mean pooling followed by L2 normalization.
+// embedBatch tokenizes a single batch, runs ONNX inference on the shared
+// session, and applies attention-mask-weighted mean pooling followed by
+// L2 normalization.
 //
 // All sequences in the batch are padded to the longest sequence (not to
 // maxLen=512) — padding tokens get id=0 and mask=0, which the mean-pool
@@ -210,19 +244,10 @@ func (m *Model) embedBatch(texts []string) ([][]float32, error) {
 	}
 	defer output.Destroy()
 
-	session, err := ort.NewAdvancedSession(m.modelPath,
-		[]string{"input_ids", "attention_mask", "token_type_ids"},
-		[]string{"last_hidden_state"},
+	if err := m.session.Run(
 		[]ort.Value{inputIDs, attentionMask, tokenTypeIDs},
 		[]ort.Value{output},
-		nil,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create session: %w", err)
-	}
-	defer session.Destroy()
-
-	if err := session.Run(); err != nil {
+	); err != nil {
 		return nil, fmt.Errorf("run session: %w", err)
 	}
 
