@@ -7,7 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mikeler216/cc-search/internal/embedding"
 )
+
+func newTestModel(t *testing.T) (*embedding.Model, error) {
+	t.Helper()
+	return embedding.New()
+}
 
 func writeJSONL(t *testing.T, dir, filename string, entries []map[string]any) string {
 	t.Helper()
@@ -197,4 +204,91 @@ func toSet(words []string) map[string]bool {
 		s[w] = true
 	}
 	return s
+}
+
+func TestRunIndexesFiles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	dir := t.TempDir()
+	claudeDir := dir
+	projectsDir := filepath.Join(claudeDir, "projects", "-Users-test-myproject")
+	os.MkdirAll(projectsDir, 0755)
+
+	entries := []map[string]any{
+		{
+			"type":      "user",
+			"message":   map[string]any{"role": "user", "content": "What is semantic search?"},
+			"sessionId": "sess-1",
+			"timestamp": 1000.0,
+		},
+		{
+			"type": "assistant",
+			"message": map[string]any{
+				"role":    "assistant",
+				"content": []any{map[string]any{"type": "text", "text": "Semantic search uses embeddings."}},
+			},
+			"sessionId": "sess-1",
+			"timestamp": 1001.0,
+		},
+	}
+	writeJSONL(t, projectsDir, "sess-1.jsonl", entries)
+
+	dbPath := filepath.Join(dir, "test.db")
+
+	emb, err := newTestModel(t)
+	if err != nil {
+		t.Fatalf("new model: %v", err)
+	}
+	defer emb.Close()
+
+	chunks, files, err := Run(dbPath, emb, claudeDir, false)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if files != 1 {
+		t.Errorf("files = %d, want 1", files)
+	}
+	if chunks < 2 {
+		t.Errorf("chunks = %d, want >= 2", chunks)
+	}
+}
+
+func TestRunIncrementalSkipsUnchanged(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	dir := t.TempDir()
+	claudeDir := dir
+	projectsDir := filepath.Join(claudeDir, "projects", "-Users-test-proj")
+	os.MkdirAll(projectsDir, 0755)
+
+	entries := []map[string]any{
+		{
+			"type":      "user",
+			"message":   map[string]any{"role": "user", "content": "Hello"},
+			"sessionId": "s1",
+			"timestamp": 1000.0,
+		},
+	}
+	writeJSONL(t, projectsDir, "s1.jsonl", entries)
+
+	dbPath := filepath.Join(dir, "test.db")
+
+	emb, err := newTestModel(t)
+	if err != nil {
+		t.Fatalf("new model: %v", err)
+	}
+	defer emb.Close()
+
+	Run(dbPath, emb, claudeDir, false)
+	chunks2, _, err := Run(dbPath, emb, claudeDir, false)
+	if err != nil {
+		t.Fatalf("second Run: %v", err)
+	}
+	if chunks2 != 0 {
+		t.Errorf("second run indexed %d chunks, want 0 (incremental skip)", chunks2)
+	}
 }
