@@ -3,6 +3,7 @@ package ingest
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 )
@@ -55,10 +56,10 @@ func projectNameFromPath(filePath string) string {
 	return segments[0]
 }
 
-func parseJSONLFile(filePath string) []turn {
+func parseJSONLFile(filePath string) ([]turn, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("open %s: %w", filePath, err)
 	}
 	defer f.Close()
 
@@ -100,5 +101,8 @@ func parseJSONLFile(filePath string) []turn {
 		})
 		turnIndex++
 	}
-	return turns
+	if err := scanner.Err(); err != nil {
+		return turns, err
+	}
+	return turns, nil
 }

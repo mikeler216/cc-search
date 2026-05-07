@@ -84,7 +84,10 @@ func TestParseJSONLFile(t *testing.T) {
 	}
 	path := writeJSONL(t, dir, "sess-1.jsonl", entries)
 
-	turns := parseJSONLFile(path)
+	turns, err := parseJSONLFile(path)
+	if err != nil {
+		t.Fatalf("parseJSONLFile returned error: %v", err)
+	}
 	if len(turns) != 2 {
 		t.Fatalf("got %d turns, want 2", len(turns))
 	}
@@ -158,7 +161,7 @@ func TestChunkLongText(t *testing.T) {
 	}
 	for _, c := range chunks {
 		wordCount := len(strings.Fields(c))
-		if wordCount > 420 {
+		if wordCount > 400 {
 			t.Errorf("chunk has %d words, max should be ~400", wordCount)
 		}
 	}
