@@ -5,3 +5,8 @@ __pycache__/
 dist/
 build
 .claude/
+
+# Go
+/cc-search
+internal/assets/model.onnx
+/vendor/
