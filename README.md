@@ -26,6 +26,7 @@ Inside Claude Code, run:
 ```
 
 On first use of `/search-history`, the command will auto-install the `cc-search` binary and build the search index.
+The plugin installs and prefers the Go binary at `~/.local/bin/cc-search`, replacing any legacy Python `cc-search` in that location during migration.
 
 ### Manual / Standalone CLI
 

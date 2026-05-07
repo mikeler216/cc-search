@@ -6,7 +6,7 @@ description: Update the cc-search CLI tool to the latest version. Use when the u
 Run via Bash:
 
 ```bash
-cc-search update
+"${CLAUDE_PLUGIN_ROOT}/scripts/run-cc-search.sh" update
 ```
 
 Report whether the update succeeded or failed based on the command output.

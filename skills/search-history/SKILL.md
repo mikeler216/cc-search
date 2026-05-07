@@ -9,23 +9,11 @@ description: Semantic search over past Claude Code conversations. Use when the u
 - NEVER search conversation files manually with grep, find, cat, or any other tool.
 - NEVER read JSONL files directly from ~/.claude/projects/.
 - The ONLY correct approach is running `cc-search query` via Bash.
+- Use `${CLAUDE_PLUGIN_ROOT}/scripts/run-cc-search.sh` so the plugin installs or replaces any legacy Python `cc-search` with the Go binary in `~/.local/bin/cc-search`.
 
 ## Step 1: Check if cc-search is installed
 
-Run via Bash: `cc-search status`
-
-If the command fails (not found), install it:
-
-```bash
-# Detect platform and download binary
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-ARCH="$(uname -m)"
-case "$ARCH" in x86_64) ARCH="amd64" ;; aarch64|arm64) ARCH="arm64" ;; esac
-curl -L -o "$HOME/.local/bin/cc-search" "https://github.com/mikeler216/cc-search/releases/latest/download/cc-search-${OS}-${ARCH}"
-chmod +x "$HOME/.local/bin/cc-search"
-export PATH="$HOME/.local/bin:$PATH"
-cc-search index
-```
+Run via Bash: `"${CLAUDE_PLUGIN_ROOT}/scripts/run-cc-search.sh" status`
 
 If status shows 0 chunks, run `cc-search index` to build the index.
 
@@ -34,13 +22,13 @@ If status shows 0 chunks, run `cc-search index` to build the index.
 Run via Bash — this is the ONLY way to search:
 
 ```bash
-cc-search query "<user's search terms>" --top 5
+"${CLAUDE_PLUGIN_ROOT}/scripts/run-cc-search.sh" query "<user's search terms>" --top 5
 ```
 
 To search across ALL projects (not just the current directory):
 
 ```bash
-cc-search query "<user's search terms>" --top 5 --all
+"${CLAUDE_PLUGIN_ROOT}/scripts/run-cc-search.sh" query "<user's search terms>" --top 5 --all
 ```
 
 Do NOT modify the query. Pass the user's words directly.
