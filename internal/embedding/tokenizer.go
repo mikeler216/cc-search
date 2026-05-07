@@ -16,8 +16,10 @@ type Tokenizer struct {
 	maxLen int
 }
 
-// NewTokenizer constructs a Tokenizer from the raw bytes of a vocab.txt file.
-// Each non-empty line becomes a vocabulary entry whose ID is its line index.
+// NewTokenizer loads a WordPiece vocabulary from the contents of vocab.txt.
+// Each non-empty line's zero-based index is its token ID. Interior blank
+// lines are skipped but not accounted for — the vocab file must not contain
+// interior blank lines (BERT vocab files satisfy this).
 func NewTokenizer(vocabData []byte) *Tokenizer {
 	vocab := make(map[string]int64)
 	for i, line := range strings.Split(string(vocabData), "\n") {
@@ -42,11 +44,7 @@ func (t *Tokenizer) Tokenize(text string) (inputIDs, attentionMask, tokenTypeIDs
 	ids := make([]int64, 0, len(tokens)+2)
 	ids = append(ids, t.vocab["[CLS]"])
 	for _, tok := range tokens {
-		if id, ok := t.vocab[tok]; ok {
-			ids = append(ids, id)
-		} else {
-			ids = append(ids, t.vocab["[UNK]"])
-		}
+		ids = append(ids, t.vocab[tok])
 	}
 	ids = append(ids, t.vocab["[SEP]"])
 
@@ -58,8 +56,9 @@ func (t *Tokenizer) Tokenize(text string) (inputIDs, attentionMask, tokenTypeIDs
 	return ids, mask, typeIDs
 }
 
-// CountTokens returns the number of subword tokens the text produces,
-// not counting the [CLS] and [SEP] boundary tokens.
+// CountTokens returns the number of WordPiece tokens in text, before any
+// truncation. This may exceed maxLen-2; use it to decide whether content
+// needs to be split into smaller chunks.
 func (t *Tokenizer) CountTokens(text string) int {
 	return len(t.tokenizeText(text))
 }
@@ -122,14 +121,15 @@ func splitOnWhitespaceAndPunctuation(text string) []string {
 }
 
 // isPunct reports whether r is an ASCII punctuation character or a Unicode
-// punctuation/symbol rune. This matches the set that BERT treats as token
-// boundaries.
+// punctuation rune (P* category). This matches BERT's _is_punctuation exactly.
+// Unicode Symbol characters (S* category, e.g. ©, ™, °, £, €) are intentionally
+// excluded — BERT does not treat them as word boundaries.
 func isPunct(r rune) bool {
 	if (r >= '!' && r <= '/') || (r >= ':' && r <= '@') ||
 		(r >= '[' && r <= '`') || (r >= '{' && r <= '~') {
 		return true
 	}
-	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+	return unicode.IsPunct(r)
 }
 
 // wordPiece segments word into one or more subword tokens using greedy
