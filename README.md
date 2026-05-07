@@ -74,7 +74,8 @@ Use `/search-history <query>` or just ask naturally:
 
 ## Requirements
 
-- macOS or Linux (x86_64 or arm64)
+- macOS arm64
+- Linux amd64
 - No runtime dependencies — the binary is self-contained
 
 ## Tech Stack

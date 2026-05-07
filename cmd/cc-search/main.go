@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -26,6 +27,7 @@ import (
 const (
 	releaseRepo         = "mikeler216/cc-search"
 	latestReleaseAPIURL = "https://api.github.com/repos/" + releaseRepo + "/releases/latest"
+	latestReleaseURL    = "https://github.com/" + releaseRepo + "/releases/latest"
 )
 
 var (
@@ -364,6 +366,19 @@ func versionCmd() *cobra.Command {
 }
 
 func latestReleaseTag(client *http.Client) (string, error) {
+	tag, err := latestReleaseTagFromAPI(client)
+	if err == nil {
+		return tag, nil
+	}
+
+	redirectTag, redirectErr := latestReleaseTagFromRedirect(client)
+	if redirectErr == nil {
+		return redirectTag, nil
+	}
+	return "", fmt.Errorf("%v; fallback failed: %w", err, redirectErr)
+}
+
+func latestReleaseTagFromAPI(client *http.Client) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, latestReleaseAPIURL, nil)
 	if err != nil {
 		return "", err
@@ -388,6 +403,30 @@ func latestReleaseTag(client *http.Client) (string, error) {
 	return parseLatestReleaseTag(body)
 }
 
+func latestReleaseTagFromRedirect(client *http.Client) (string, error) {
+	redirectClient := *client
+	redirectClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	req, err := http.NewRequest(http.MethodGet, latestReleaseURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "cc-search/"+displayVersion(version))
+
+	resp, err := redirectClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("latest release redirect lookup failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusMultipleChoices || resp.StatusCode >= http.StatusBadRequest {
+		return "", fmt.Errorf("latest release redirect lookup failed: HTTP %d", resp.StatusCode)
+	}
+	return parseLatestReleaseLocation(resp.Header.Get("Location"))
+}
+
 func parseLatestReleaseTag(body []byte) (string, error) {
 	var payload struct {
 		TagName string `json:"tag_name"`
@@ -402,17 +441,45 @@ func parseLatestReleaseTag(body []byte) (string, error) {
 	return tag, nil
 }
 
-func releaseAssetURL(tag, goos, goarch string) string {
+func parseLatestReleaseLocation(location string) (string, error) {
+	location = strings.TrimSpace(location)
+	if location == "" {
+		return "", fmt.Errorf("latest release redirect missing Location header")
+	}
+
+	tag := path.Base(location)
+	if strings.HasPrefix(tag, "v") {
+		return tag, nil
+	}
+	return "", fmt.Errorf("latest release redirect did not include a tag: %s", location)
+}
+
+func releaseAssetURL(tag, goos, goarch string) (string, error) {
+	binaryName, err := releaseBinaryName(goos, goarch)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf(
 		"https://github.com/%s/releases/download/%s/%s",
 		releaseRepo,
 		strings.TrimSpace(tag),
-		releaseBinaryName(goos, goarch),
-	)
+		binaryName,
+	), nil
 }
 
-func releaseBinaryName(goos, goarch string) string {
-	return fmt.Sprintf("cc-search-%s-%s", goos, goarch)
+func releaseBinaryName(goos, goarch string) (string, error) {
+	switch {
+	case goos == "linux" && goarch == "amd64":
+		return "cc-search-linux-amd64", nil
+	case goos == "darwin" && goarch == "arm64":
+		return "cc-search-darwin-arm64", nil
+	default:
+		return "", fmt.Errorf(
+			"unsupported platform %s/%s; supported release binaries: linux/amd64 and darwin/arm64",
+			goos,
+			goarch,
+		)
+	}
 }
 
 func sameVersion(current, latest string) bool {
@@ -458,7 +525,10 @@ func updateCmd() *cobra.Command {
 
 			goos := runtime.GOOS
 			goarch := runtime.GOARCH
-			binaryURL := releaseAssetURL(latestTag, goos, goarch)
+			binaryURL, err := releaseAssetURL(latestTag, goos, goarch)
+			if err != nil {
+				return err
+			}
 			sha256URL := binaryURL + ".sha256"
 
 			// Download binary.

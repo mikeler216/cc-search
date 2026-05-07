@@ -25,10 +25,6 @@ jobs:
             goos: darwin
             goarch: arm64
             binary: cc-search-darwin-arm64
-          - os: macos-13
-            goos: darwin
-            goarch: amd64
-            binary: cc-search-darwin-amd64
 
     runs-on: ${{ matrix.os }}
 
@@ -57,10 +53,6 @@ jobs:
           wget -q https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz
           tar xzf onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz
           find onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}/lib -maxdepth 1 \( -type f -o -type l \) -name '*.dylib*' -exec sudo cp -P {} /opt/homebrew/lib/ \;
-
-      - name: Install ONNX Runtime (macOS x64)
-        if: runner.os == 'macOS' && runner.arch == 'X64'
-        run: brew install onnxruntime
 
       - name: Export ONNX model
         run: |

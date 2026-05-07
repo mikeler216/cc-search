@@ -16,22 +16,60 @@ fi
 
 echo ""
 
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-ARCH="$(uname -m)"
-case "$ARCH" in
-  x86_64) ARCH="amd64" ;;
-  aarch64|arm64) ARCH="arm64" ;;
-esac
-
 REPO="mikeler216/cc-search"
+LATEST_RELEASE_URL="https://github.com/${REPO}/releases/latest"
+LATEST_RELEASE_API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+
+detect_os() {
+  uname -s | tr '[:upper:]' '[:lower:]'
+}
+
+detect_arch() {
+  local arch
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64) echo "amd64" ;;
+    aarch64|arm64) echo "arm64" ;;
+    *) echo "$arch" ;;
+  esac
+}
+
+platform_supported() {
+  case "${1}/${2}" in
+    linux/amd64|darwin/arm64)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+unsupported_platform_message() {
+  printf 'unsupported platform %s/%s; supported release binaries: linux/amd64 and darwin/arm64\n' "$1" "$2"
+}
+
+OS="$(detect_os)"
+ARCH="$(detect_arch)"
+if ! platform_supported "$OS" "$ARCH"; then
+  echo "Error: $(unsupported_platform_message "$OS" "$ARCH")"
+  exit 1
+fi
+
 BINARY="cc-search-${OS}-${ARCH}"
 
 fetch_latest_tag() {
-  local body
+  local body final_url tag
   if command -v curl &>/dev/null; then
-    body="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")"
+    final_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$LATEST_RELEASE_URL" 2>/dev/null || true)"
+    tag="${final_url##*/}"
+    if [[ "$tag" == v* ]]; then
+      printf '%s\n' "$tag"
+      return
+    fi
+    body="$(curl -fsSL "$LATEST_RELEASE_API_URL" 2>/dev/null || true)"
   elif command -v wget &>/dev/null; then
-    body="$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest")"
+    body="$(wget -qO- "$LATEST_RELEASE_API_URL" 2>/dev/null || true)"
   else
     echo "Error: curl or wget required"
     exit 1

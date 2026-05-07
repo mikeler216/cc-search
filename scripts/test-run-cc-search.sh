@@ -84,5 +84,25 @@ EOF
   assert_file_contains_line "${go_log}" "query migration-test"
 }
 
+test_rejects_unsupported_platform() {
+  local tmpdir home_dir stderr_file
+
+  tmpdir="$(mktemp -d /tmp/cc-search-test.XXXXXX)"
+  trap 'rm -rf "$tmpdir"' RETURN
+
+  home_dir="${tmpdir}/home"
+  stderr_file="${tmpdir}/stderr.log"
+  mkdir -p "${home_dir}"
+
+  if HOME="${home_dir}" CC_SEARCH_TEST_OS="darwin" CC_SEARCH_TEST_ARCH="amd64" "${SCRIPT}" query test 2>"${stderr_file}"; then
+    fail "expected unsupported platform invocation to fail"
+  fi
+
+  if ! grep -Fq "unsupported platform darwin/amd64" "${stderr_file}"; then
+    fail "expected unsupported platform message in stderr"
+  fi
+}
+
 test_installs_go_binary_even_when_legacy_cc_search_is_on_path
+test_rejects_unsupported_platform
 echo "PASS"

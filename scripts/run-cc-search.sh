@@ -6,18 +6,28 @@ INSTALL_DIR="${CC_SEARCH_INSTALL_DIR:-$HOME/.local/bin}"
 TARGET="${INSTALL_DIR}/cc-search"
 TMP_SHA256="${CC_SEARCH_TMP_SHA256:-/tmp/cc-search.sha256}"
 INSTALLED_THIS_RUN=0
+LATEST_RELEASE_URL="https://github.com/${REPO}/releases/latest"
+LATEST_RELEASE_API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 
 log() {
   echo "$*" >&2
 }
 
 detect_os() {
+  if [[ -n "${CC_SEARCH_TEST_OS:-}" ]]; then
+    printf '%s\n' "${CC_SEARCH_TEST_OS}"
+    return
+  fi
   uname -s | tr '[:upper:]' '[:lower:]'
 }
 
 detect_arch() {
   local arch
-  arch="$(uname -m)"
+  if [[ -n "${CC_SEARCH_TEST_ARCH:-}" ]]; then
+    arch="${CC_SEARCH_TEST_ARCH}"
+  else
+    arch="$(uname -m)"
+  fi
   case "$arch" in
     x86_64) echo "amd64" ;;
     aarch64|arm64) echo "arm64" ;;
@@ -25,13 +35,33 @@ detect_arch() {
   esac
 }
 
+platform_supported() {
+  case "${1}/${2}" in
+    linux/amd64|darwin/arm64)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+unsupported_platform_message() {
+  printf 'unsupported platform %s/%s; supported release binaries: linux/amd64 and darwin/arm64\n' "$1" "$2"
+}
+
 fetch_latest_tag() {
-  local url body
-  url="https://api.github.com/repos/${REPO}/releases/latest"
+  local body final_url tag
   if command -v curl >/dev/null 2>&1; then
-    body="$(curl -fsSL "$url")"
+    final_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$LATEST_RELEASE_URL" 2>/dev/null || true)"
+    tag="${final_url##*/}"
+    if [[ "$tag" == v* ]]; then
+      printf '%s\n' "$tag"
+      return
+    fi
+    body="$(curl -fsSL "$LATEST_RELEASE_API_URL" 2>/dev/null || true)"
   elif command -v wget >/dev/null 2>&1; then
-    body="$(wget -qO- "$url")"
+    body="$(wget -qO- "$LATEST_RELEASE_API_URL" 2>/dev/null || true)"
   else
     log "Error: curl or wget required"
     exit 1
@@ -52,14 +82,19 @@ download_binary() {
     return
   fi
 
+  os="$(detect_os)"
+  arch="$(detect_arch)"
+  if ! platform_supported "$os" "$arch"; then
+    log "Error: $(unsupported_platform_message "$os" "$arch")"
+    exit 1
+  fi
+
   latest_tag="$(fetch_latest_tag)"
   if [[ -z "$latest_tag" ]]; then
     log "Error: could not resolve the latest GitHub release tag"
     exit 1
   fi
 
-  os="$(detect_os)"
-  arch="$(detect_arch)"
   binary="cc-search-${os}-${arch}"
   url="https://github.com/${REPO}/releases/download/${latest_tag}/${binary}"
   tmp_target="${TARGET}.download"

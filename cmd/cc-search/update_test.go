@@ -24,9 +24,29 @@ func TestSameVersionIgnoresLeadingV(t *testing.T) {
 }
 
 func TestReleaseAssetURLUsesExplicitTag(t *testing.T) {
-	got := releaseAssetURL("v1.0.1", "darwin", "amd64")
-	want := "https://github.com/mikeler216/cc-search/releases/download/v1.0.1/cc-search-darwin-amd64"
+	got, err := releaseAssetURL("v1.0.1", "darwin", "arm64")
+	if err != nil {
+		t.Fatalf("releaseAssetURL: %v", err)
+	}
+	want := "https://github.com/mikeler216/cc-search/releases/download/v1.0.1/cc-search-darwin-arm64"
 	if got != want {
 		t.Fatalf("releaseAssetURL() = %q, want %q", got, want)
+	}
+}
+
+func TestReleaseAssetURLRejectsUnsupportedPlatform(t *testing.T) {
+	_, err := releaseAssetURL("v1.0.1", "darwin", "amd64")
+	if err == nil {
+		t.Fatal("expected unsupported platform error")
+	}
+}
+
+func TestParseLatestReleaseLocation(t *testing.T) {
+	tag, err := parseLatestReleaseLocation("https://github.com/mikeler216/cc-search/releases/tag/v1.0.2")
+	if err != nil {
+		t.Fatalf("parseLatestReleaseLocation: %v", err)
+	}
+	if tag != "v1.0.2" {
+		t.Fatalf("tag = %q, want %q", tag, "v1.0.2")
 	}
 }
