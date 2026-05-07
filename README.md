@@ -25,16 +25,16 @@ Inside Claude Code, run:
 /plugin install cc-search@cc-search
 ```
 
-On first use of `/search-history`, the command will auto-install `uv`, the `cc-search` CLI, and build the search index. Requires Python 3.11+.
+On first use of `/search-history`, the command will auto-install the `cc-search` binary and build the search index.
 
 ### Manual / Standalone CLI
 
 ```bash
-git clone https://github.com/mikeler216/cc-search.git
-cd cc-search
-uv tool install .
+curl -fsSL https://raw.githubusercontent.com/mikeler216/cc-search/main/scripts/install.sh | bash
 cc-search index
 ```
+
+Or download a pre-built binary directly from the [releases page](https://github.com/mikeler216/cc-search/releases).
 
 ## Usage
 
@@ -73,15 +73,15 @@ Use `/search-history <query>` or just ask naturally:
 
 ## Requirements
 
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/)
+- macOS or Linux (x86_64 or arm64)
+- No runtime dependencies — the binary is self-contained
 
 ## Tech Stack
 
-- **sentence-transformers** (`all-MiniLM-L6-v2`) — local embedding model
+- **Go** — single static binary, no runtime dependencies
+- **all-MiniLM-L6-v2 (ONNX)** — local embedding model via ONNX Runtime
 - **sqlite-vec** — vector search extension for SQLite
-- **click** — CLI framework
-- **uv** — Python package management
+- **cobra** — CLI framework
 
 ## License
 
