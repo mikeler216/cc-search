@@ -1,10 +1,11 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: write
 
 env:
   # Must stay aligned with the ONNX Runtime headers bundled by
@@ -12,14 +13,22 @@ env:
   ONNXRUNTIME_VERSION: "1.25.0"
 
 jobs:
-  test:
+  build:
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            arch: amd64
+            goos: linux
+            goarch: amd64
+            binary: cc-search-linux-amd64
           - os: macos-latest
-            arch: arm64
+            goos: darwin
+            goarch: arm64
+            binary: cc-search-darwin-arm64
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            binary: cc-search-darwin-amd64
 
     runs-on: ${{ matrix.os }}
 
@@ -49,16 +58,43 @@ jobs:
           tar xzf onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz
           find onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}/lib -maxdepth 1 \( -type f -o -type l \) -name '*.dylib*' -exec sudo cp -P {} /opt/homebrew/lib/ \;
 
+      - name: Install ONNX Runtime (macOS x64)
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        run: brew install onnxruntime
+
       - name: Export ONNX model
         run: |
           python -m pip install huggingface_hub transformers
           python scripts/export-model.py
 
       - name: Build
-        run: CGO_ENABLED=1 go build ./cmd/cc-search
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -ldflags="-s -w" -o ${{ matrix.binary }} ./cmd/cc-search
 
-      - name: Test
-        run: CGO_ENABLED=1 go test ./... -v -count=1 -timeout 300s
+      - name: Generate checksum
+        run: shasum -a 256 ${{ matrix.binary }} > ${{ matrix.binary }}.sha256
 
-      - name: Vet
-        run: go vet ./...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          path: |
+            ${{ matrix.binary }}
+            ${{ matrix.binary }}.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
