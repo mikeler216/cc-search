@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Export all-MiniLM-L6-v2 to ONNX format and extract vocab.txt."""
+import shutil
 from pathlib import Path
 
 
@@ -27,7 +28,6 @@ def main():
         filename="onnx/model.onnx",
     )
 
-    import shutil
     shutil.copy(onnx_file, model_path)
     print(f"Wrote {model_path} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
 

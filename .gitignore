@@ -8,5 +8,5 @@ build
 
 # Go
 /cc-search
-internal/assets/model.onnx
+/internal/assets/model.onnx
 /vendor/

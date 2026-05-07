@@ -8,7 +8,7 @@ ONNX_LIB ?= $(shell \
 	else echo ""; fi)
 
 build: internal/assets/model.onnx
-	CGO_ENABLED=1 go build -o $(BINARY) ./cmd/cc-search
+	CGO_ENABLED=1 ONNX_LIB=$(ONNX_LIB) go build -o $(BINARY) ./cmd/cc-search
 
 test: internal/assets/model.onnx
 	CGO_ENABLED=1 ONNX_LIB=$(ONNX_LIB) go test ./... -v -count=1
@@ -16,7 +16,7 @@ test: internal/assets/model.onnx
 assets: internal/assets/model.onnx
 
 internal/assets/model.onnx:
-	python scripts/export-model.py
+	uv run python scripts/export-model.py
 
 clean:
 	rm -f $(BINARY)
