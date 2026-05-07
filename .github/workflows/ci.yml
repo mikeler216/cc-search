@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  # Must stay aligned with the ONNX Runtime headers bundled by
+  # github.com/yalue/onnxruntime_go in go.mod.
+  ONNXRUNTIME_VERSION: "1.25.0"
+
 jobs:
   test:
     strategy:
@@ -32,14 +37,17 @@ jobs:
       - name: Install ONNX Runtime (Linux)
         if: runner.os == 'Linux'
         run: |
-          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-linux-x64-1.17.1.tgz
-          tar xzf onnxruntime-linux-x64-1.17.1.tgz
-          sudo cp onnxruntime-linux-x64-1.17.1/lib/* /usr/local/lib/
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz
+          tar xzf onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz
+          sudo cp onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}/lib/* /usr/local/lib/
           sudo ldconfig
 
-      - name: Install ONNX Runtime (macOS)
-        if: runner.os == 'macOS'
-        run: brew install onnxruntime
+      - name: Install ONNX Runtime (macOS arm64)
+        if: runner.os == 'macOS' && runner.arch == 'ARM64'
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz
+          tar xzf onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz
+          sudo cp onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}/lib/* /opt/homebrew/lib/
 
       - name: Export ONNX model
         run: |
