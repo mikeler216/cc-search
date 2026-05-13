@@ -28,6 +28,7 @@ const (
 	releaseRepo         = "mikeler216/cc-search"
 	latestReleaseAPIURL = "https://api.github.com/repos/" + releaseRepo + "/releases/latest"
 	latestReleaseURL    = "https://github.com/" + releaseRepo + "/releases/latest"
+	minRelevantScore    = 0.45
 )
 
 var (
@@ -274,9 +275,11 @@ func queryCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			results = filterRelevantResults(results)
+			results = filterDisplayableResults(results)
 
 			if len(results) == 0 {
-				fmt.Println("No results found.")
+				fmt.Println("No strong matches found.")
 				return nil
 			}
 
@@ -308,6 +311,47 @@ func queryCmd() *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Filter by project path")
 	cmd.Flags().StringVar(&role, "role", "", "Filter by role (user|assistant)")
 	return cmd
+}
+
+func filterRelevantResults(results []store.Result) []store.Result {
+	if len(results) == 0 || results[0].Score < minRelevantScore {
+		return nil
+	}
+
+	keep := 0
+	for _, result := range results {
+		if result.Score < minRelevantScore {
+			break
+		}
+		keep++
+	}
+	return results[:keep]
+}
+
+func filterDisplayableResults(results []store.Result) []store.Result {
+	displayable := results[:0]
+	for _, result := range results {
+		if result.SessionID == "" {
+			continue
+		}
+		if isSubagentConversation(result.FilePath) {
+			continue
+		}
+		if _, err := os.Stat(result.FilePath); err != nil {
+			continue
+		}
+		displayable = append(displayable, result)
+	}
+	return displayable
+}
+
+func isSubagentConversation(filePath string) bool {
+	for _, part := range strings.Split(filepath.Clean(filePath), string(os.PathSeparator)) {
+		if part == "subagents" {
+			return true
+		}
+	}
+	return false
 }
 
 // ── status ─────────────────────────────────────────────────────────────────
