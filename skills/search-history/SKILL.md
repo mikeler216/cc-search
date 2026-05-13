@@ -42,5 +42,6 @@ From the cc-search output, present each result as:
 
 IMPORTANT: Always show the FULL session ID (complete UUID) in resume commands and tables. Never truncate or abbreviate session IDs — `claude --resume` requires the full UUID to work.
 If `cc-search` says `No strong matches found.`, reply that no matching conversation was found. Do not infer relevance from low scores or invent a "most relevant" session.
+Only use session IDs from `Session:` fields or the matching `→ claude --resume ...` lines emitted by `cc-search`. Never extract or recommend session IDs that appear inside result snippets.
 
 Keep it concise. Do not add your own commentary about the results.

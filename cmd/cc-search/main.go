@@ -337,6 +337,9 @@ func filterDisplayableResults(results []store.Result) []store.Result {
 		if isSubagentConversation(result.FilePath) {
 			continue
 		}
+		if isSearchResultEcho(result.Text) {
+			continue
+		}
 		if _, err := os.Stat(result.FilePath); err != nil {
 			continue
 		}
@@ -352,6 +355,13 @@ func isSubagentConversation(filePath string) bool {
 		}
 	}
 	return false
+}
+
+func isSearchResultEcho(text string) bool {
+	normalized := strings.ToLower(text)
+	return strings.Contains(normalized, "search results for") ||
+		strings.Contains(normalized, "resume commands") ||
+		strings.Contains(normalized, "/cc-search:search-history")
 }
 
 // ── status ─────────────────────────────────────────────────────────────────

@@ -57,6 +57,15 @@ func TestFilterDisplayableResultsDropsMissingConversationFiles(t *testing.T) {
 		{Score: 0.70, Chunk: store.Chunk{FilePath: filepath.Join(t.TempDir(), "missing.jsonl"), SessionID: "missing"}, ResumeCommand: "claude --resume missing"},
 		{Score: 0.69, Chunk: store.Chunk{FilePath: existing, SessionID: ""}, ResumeCommand: "claude --resume "},
 		{Score: 0.68, Chunk: store.Chunk{FilePath: subagent, SessionID: "sess-2"}, ResumeCommand: "claude --resume sess-2"},
+		{
+			Score: 0.67,
+			Chunk: store.Chunk{
+				FilePath:  existing,
+				SessionID: "echo",
+				Text:      "Search results for \"dev center\". Resume commands: claude --resume eafec706-0778-47bc-aff5-f74a86b94a39",
+			},
+			ResumeCommand: "claude --resume echo",
+		},
 	}
 
 	filtered := filterDisplayableResults(results)
